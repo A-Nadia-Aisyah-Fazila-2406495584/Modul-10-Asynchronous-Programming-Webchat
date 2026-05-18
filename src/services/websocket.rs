@@ -11,7 +11,6 @@ pub struct WebsocketService {
 
 impl WebsocketService {
     pub fn new() -> Self {
-        let (in_tx, mut in_rx) = futures::channel::mpsc::channel::<String>(1000);
         let mut event_bus = EventBus::dispatcher();
 
         let ws = WebSocket::open("ws://127.0.0.1:8080").unwrap();

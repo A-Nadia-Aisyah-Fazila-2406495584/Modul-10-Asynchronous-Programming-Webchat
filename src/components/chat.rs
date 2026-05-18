@@ -15,6 +15,8 @@ pub enum Msg {
 struct MessageData {
     from: String,
     message: String,
+    #[serde(skip)]
+    timestamp: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -45,6 +47,21 @@ pub struct Chat {
     wss: WebsocketService,
     messages: Vec<MessageData>,
     _producer: Box<dyn Bridge<EventBus>>,
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
+fn get_time() -> String {
+    let date = js_sys::Date::new_0();
+    let hours = date.get_hours();
+    let minutes = date.get_minutes();
+    format!("{:02}:{:02}", hours, minutes)
 }
 
 impl Component for Chat {
@@ -94,7 +111,7 @@ fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
                         .map(|u| UserProfile {
                             name: u.into(),
                             avatar: format!(
-                                "https://avatars.dicebear.com/api/adventurer-neutral/{}.svg",
+                                "https://robohash.org/{}.png?set=set4",
                                 u
                             )
                             .into(),
@@ -103,8 +120,9 @@ fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
                     return true;
                 }
                 MsgTypes::Message => {
-                    let message_data: MessageData =
+                    let mut message_data: MessageData =
                         serde_json::from_str(&msg.data.unwrap()).unwrap();
+                    message_data.timestamp = get_time();
                     self.messages.push(message_data);
                     return true;
                 }
@@ -116,7 +134,6 @@ fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         Msg::SubmitMessage => {
             let input = self.chat_input.cast::<HtmlInputElement>();
             if let Some(input) = input {
-                //log::debug!("got input: {:?}", input.value());
                 let message = WebSocketMessage {
                     message_type: MsgTypes::Message,
                     data: Some(input.value()),
@@ -140,22 +157,47 @@ fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
 fn view(&self, ctx: &Context<Self>) -> Html {
     let submit = ctx.link().callback(|_| Msg::SubmitMessage);
     html! {
-        <div class="flex w-screen">
-            <div class="flex-none w-56 h-screen bg-gray-100">
-                <div class="text-xl p-3">{"Users"}</div>
+        <div class="flex w-screen" style="background:#FDF6F0; font-family:'Playfair Display',serif;">
+
+            <div style="
+                width:220px;
+                flex-shrink:0;
+                height:100vh;
+                background:#F9EAE1;
+                border-right:1px solid #E3B6B6;
+                display:flex;
+                flex-direction:column;
+            ">
+                <div style="
+                    padding:20px 16px 12px;
+                    font-family:'Parisienne',cursive;
+                    font-size:26px;
+                    color:#B44A4A;
+                    border-bottom:1px solid #E3B6B6;
+                    text-align:center;
+                ">
+                    {"Friends"}
+                </div>
                 {
                     self.users.clone().iter().map(|u| {
                         html!{
-                            <div class="flex m-3 bg-white rounded-lg p-2">
-                                <div>
-                                    <img class="w-12 h-12 rounded-full" src={u.avatar.clone()} alt="avatar"/>
-                                </div>
-                                <div class="flex-grow p-3">
-                                    <div class="flex text-xs justify-between">
-                                        <div>{u.name.clone()}</div>
-                                    </div>
-                                    <div class="text-xs text-gray-400">
-                                        {"Hi there!"}
+                            <div style="
+                                display:flex;
+                                align-items:center;
+                                margin:10px 12px;
+                                background:rgba(255,255,255,0.7);
+                                border:1px solid #E3B6B6;
+                                border-radius:16px;
+                                padding:8px 10px;
+                            ">
+                                <img
+                                    style="width:40px;height:40px;border-radius:50%;border:2px solid #E3B6B6;"
+                                    src={u.avatar.clone()}
+                                    alt="avatar"
+                                />
+                                <div style="margin-left:10px;">
+                                    <div style="font-size:13px;color:#5A3A32;font-weight:bold;">
+                                        {capitalize(&u.name)}
                                     </div>
                                 </div>
                             </div>
@@ -163,22 +205,63 @@ fn view(&self, ctx: &Context<Self>) -> Html {
                     }).collect::<Html>()
                 }
             </div>
-            <div class="grow h-screen flex flex-col">
-                <div class="w-full h-14 border-b-2 border-gray-300"><div class="text-xl p-3">{"💬 Chat!"}</div></div>
-                <div class="w-full grow overflow-auto border-b-2 border-gray-300">
+
+            <div style="flex:1;display:flex;flex-direction:column;height:100vh;">
+
+                <div style="
+                    height:56px;
+                    background:#F2D6D6;
+                    border-bottom:1px solid #E3B6B6;
+                    display:flex;
+                    align-items:center;
+                    padding:0 20px;
+                ">
+                    <span style="
+                        font-family:'Parisienne',cursive;
+                        font-size:28px;
+                        color:#B44A4A;
+                    ">
+                        {"Chatify"}
+                    </span>
+                </div>
+
+                <div style="
+                    flex:1;
+                    overflow-y:auto;
+                    padding:16px;
+                    border-bottom:1px solid #E3B6B6;
+                ">
                     {
                         self.messages.iter().map(|m| {
                             let user = self.users.iter().find(|u| u.name == m.from).unwrap();
                             html!{
-                                <div class="flex items-end w-3/6 bg-gray-100 m-8 rounded-tl-lg rounded-tr-lg rounded-br-lg ">
-                                    <img class="w-8 h-8 rounded-full m-3" src={user.avatar.clone()} alt="avatar"/>
-                                    <div class="p-3">
-                                        <div class="text-sm">
-                                            {m.from.clone()}
+                                <div style="
+                                    display:flex;
+                                    align-items:flex-end;
+                                    margin:12px 0;
+                                    max-width:60%;
+                                ">
+                                    <img
+                                        style="width:32px;height:32px;border-radius:50%;border:2px solid #E3B6B6;margin-right:10px;"
+                                        src={user.avatar.clone()}
+                                        alt="avatar"
+                                    />
+                                    <div style="
+                                        background:rgba(255,255,255,0.75);
+                                        border:1px solid #E3B6B6;
+                                        border-radius:16px 16px 16px 4px;
+                                        padding:10px 14px;
+                                        box-shadow:0 2px 8px rgba(180,74,74,0.08);
+                                    ">
+                                        <div style="font-size:12px;color:#B44A4A;font-style:italic;margin-bottom:4px;">
+                                            {capitalize(&m.from)}
+                                            <span style="font-size:10px;color:#C07070;margin-left:8px;">
+                                                {m.timestamp.clone()}
+                                            </span>
                                         </div>
-                                        <div class="text-xs text-gray-500">
+                                        <div style="font-size:13px;color:#5A3A32;">
                                             if m.message.ends_with(".gif") {
-                                                <img class="mt-3" src={m.message.clone()}/>
+                                                <img style="max-width:200px;border-radius:8px;" src={m.message.clone()}/>
                                             } else {
                                                 {m.message.clone()}
                                             }
@@ -188,16 +271,57 @@ fn view(&self, ctx: &Context<Self>) -> Html {
                             }
                         }).collect::<Html>()
                     }
-
                 </div>
-                <div class="w-full h-14 flex px-3 items-center">
-                    <input ref={self.chat_input.clone()} type="text" placeholder="Message" class="block w-full py-2 pl-4 mx-3 bg-gray-100 rounded-full outline-none focus:text-gray-700" name="message" required=true />
-                    <button onclick={submit} class="p-3 shadow-sm bg-blue-600 w-10 h-10 rounded-full flex justify-center items-center color-white">
-                        <svg fill="#000000" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="fill-white">
-                            <path d="M0 0h24v24H0z" fill="none"></path><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+
+                <div style="
+                    height:64px;
+                    display:flex;
+                    align-items:center;
+                    padding:0 16px;
+                    background:#F9EAE1;
+                    gap:10px;
+                ">
+                    <input
+                        ref={self.chat_input.clone()}
+                        type="text"
+                        placeholder="Write something... "
+                        name="message"
+                        required=true
+                        style="
+                            flex:1;
+                            padding:10px 18px;
+                            border-radius:999px;
+                            border:1px solid #E3B6B6;
+                            background:#fffaf7;
+                            font-family:'Playfair Display',serif;
+                            font-style:italic;
+                            font-size:14px;
+                            color:#5A3A32;
+                            outline:none;
+                        "
+                    />
+                    <button
+                        onclick={submit}
+                        style="
+                            width:42px;
+                            height:42px;
+                            border-radius:50%;
+                            border:none;
+                            background:#B44A4A;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            cursor:pointer;
+                            box-shadow:0 2px 8px rgba(180,74,74,0.3);
+                        "
+                    >
+                        <svg fill="#000000" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="fill:white;width:18px;height:18px;">
+                            <path d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
                         </svg>
                     </button>
                 </div>
+
             </div>
         </div>
     }
