@@ -1,6 +1,11 @@
 # Modul 10 - Tutorial 3 WebChat using yew
 
 ## Experiment 3.1: Original code
+- **Screen capture**:
+   - Login:
+   ![3.2 Login](assets/images/Ori_Login.png)
+   - Chat:
+   ![3.2 Login](assets/images/Ori_Chat.png)
 
 ## Experiment 3.2: Be Creative!
 - **Screen capture**:
